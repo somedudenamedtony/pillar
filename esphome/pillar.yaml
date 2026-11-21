@@ -199,7 +199,6 @@ sensor:
     device_class: battery
     state_class: measurement
     accuracy_decimals: 0
-    entity_category: diagnostic
     filters:
       # Rough single-cell LiPo resting curve.
       - calibrate_linear:
