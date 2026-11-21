@@ -2,7 +2,7 @@
 
 Water softener salt level sensor. A laser time-of-flight sensor hangs under
 the brine tank lid and measures the distance down to the salt. An ESP32-C6
-on top of the lid wakes every 6 hours, reports to Home Assistant and goes
+on top of the lid wakes every 12 hours, reports to Home Assistant and goes
 back to sleep, so it runs for a long time on one LiPo.
 
 ![Exploded view: box lid, controller box, tank lid, spacer, sensor board, hood](hardware/pillar-exploded.png)
@@ -101,7 +101,7 @@ and re-export, e.g.
    goes to sleep.
 
 Turn **Pillar stay awake** on whenever you want to flash over Wi-Fi or watch
-logs. The device sees it on its next wake (up to 6 h, or press reset) and
+logs. The device sees it on its next wake (up to 12 h, or press reset) and
 stays up until you turn it off.
 
 ## Calibration
@@ -122,7 +122,7 @@ Until then, the placeholders (800 / 250 mm) give a rough reading.
 ## Battery life
 
 Rough estimate, not measured: the board sleeps at about 16–36 µA (it depends
-on the board revision), and each wake is a few seconds of Wi-Fi. At 4 wakes a
+on the board revision), and each wake is a few seconds of Wi-Fi. At 2 wakes a
 day that works out to well over a year per charge on 3000 mAh. **Battery
 Voltage** and **Battery** show the real trend after a few weeks. Charge over
 USB-C through the opening in the box, no need to unmount anything.

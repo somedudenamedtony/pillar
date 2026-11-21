@@ -35,14 +35,14 @@ input_number:
 
 template:
   - binary_sensor:
-      # On when Pillar hasn't reported for 14 h (it wakes every 6 h).
+      # On when Pillar hasn't reported for 26 h (it wakes every 12 h).
       - name: Pillar offline
         unique_id: pillar_offline
         device_class: problem
         state: >
           {% set s = states.sensor.pillar_salt_distance %}
           {% if s is none %}true
-          {% else %}{{ (now() - s.last_reported) > timedelta(hours=14) }}{% endif %}
+          {% else %}{{ (now() - s.last_reported) > timedelta(hours=26) }}{% endif %}
 
 script:
   pillar_notify:
@@ -116,4 +116,4 @@ automation:
       - action: script.pillar_notify
         data:
           title: Pillar hasn't reported
-          message: No salt reading for 14 hours. Battery or Wi-Fi?
+          message: No salt reading for 26 hours. Battery or Wi-Fi?

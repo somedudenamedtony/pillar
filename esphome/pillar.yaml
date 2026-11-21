@@ -31,8 +31,9 @@ substitutions:
   name: pillar
   friendly_name: Pillar
 
-  # How often to wake up and measure. Salt goes down slowly; 6h is plenty.
-  sleep_interval: 6h
+  # How often to wake up and measure. Salt goes down slowly; 12h is plenty
+  # (24h works too: also bump the offline alert in the HA package).
+  sleep_interval: 12h
 
   # CALIBRATION (millimetres from the sensor face to the top of the salt)
   # empty_distance_mm: reading when the salt is down to where you'd refill
