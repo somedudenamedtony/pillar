@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="360" viewBox="0 0 760 360" font-family="Helvetica, Arial, sans-serif">
+  <title>Pillar wiring</title>
+  <rect width="760" height="360" fill="#ffffff"/>
+  <!-- FireBeetle -->
+  <rect x="40" y="60" width="240" height="240" rx="10" fill="#e8f0fb" stroke="#185fa5" stroke-width="1.5"/>
+  <text x="160" y="92" text-anchor="middle" font-size="18" font-weight="bold" fill="#0c447c">FireBeetle 2 ESP32-C6</text>
+  <text x="160" y="114" text-anchor="middle" font-size="13" fill="#185fa5">top of the lid, in the box</text>
+  <g font-size="15" fill="#0c447c">
+    <text x="260" y="154" text-anchor="end">3V3</text>
+    <text x="260" y="189" text-anchor="end">GND</text>
+    <text x="260" y="224" text-anchor="end">IO19 (SDA)</text>
+    <text x="260" y="259" text-anchor="end">IO20 (SCL)</text>
+  </g>
+  <text x="60" y="290" font-size="13" fill="#185fa5">BAT (JST) ← LP103665 3000 mAh LiPo</text>
+  <!-- Pololu -->
+  <rect x="480" y="60" width="240" height="240" rx="10" fill="#f1ecfb" stroke="#534ab7" stroke-width="1.5"/>
+  <text x="600" y="92" text-anchor="middle" font-size="18" font-weight="bold" fill="#3c3489">Pololu VL53L4CD</text>
+  <text x="600" y="114" text-anchor="middle" font-size="13" fill="#534ab7">under the lid, sensor face down</text>
+  <g font-size="15" fill="#3c3489">
+    <text x="500" y="154">VIN</text>
+    <text x="500" y="189">GND</text>
+    <text x="500" y="224">SDA</text>
+    <text x="500" y="259">SCL</text>
+    <text x="500" y="288" fill="#888780">XSHUT, GPIO1: leave open</text>
+  </g>
+  <!-- wires -->
+  <g stroke-width="3" fill="none">
+    <line x1="280" y1="149" x2="480" y2="149" stroke="#d14b3c"/>
+    <line x1="280" y1="184" x2="480" y2="184" stroke="#2c2c2a"/>
+    <line x1="280" y1="219" x2="480" y2="219" stroke="#1d9e75"/>
+    <line x1="280" y1="254" x2="480" y2="254" stroke="#ba7517"/>
+  </g>
+  <text x="380" y="330" text-anchor="middle" font-size="13" fill="#5f5e5a">4 wires, ~15 cm, through the 8 mm hole in the tank lid</text>
+  <text x="380" y="36" text-anchor="middle" font-size="13" fill="#5f5e5a">Check SDA/SCL against your board's silkscreen</text>
+</svg>

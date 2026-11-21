@@ -1,0 +1,119 @@
+# Pillar: water softener salt level (Home Assistant package)
+#
+# Copy to <config>/packages/ and enable packages in configuration.yaml:
+#
+#   homeassistant:
+#     packages: !include_dir_named packages
+#
+# Expects the ESPHome device named "pillar" (entities sensor.pillar_salt_level,
+# sensor.pillar_battery, sensor.pillar_salt_distance).
+
+input_boolean:
+  # Turn on before flashing OTA or reading logs. The device checks it each
+  # time it wakes and stays awake while it's on. Turn it off when done.
+  pillar_stay_awake:
+    name: Pillar stay awake
+    icon: mdi:sleep-off
+
+input_number:
+  pillar_low_salt_threshold:
+    name: Pillar low salt alert
+    min: 5
+    max: 60
+    step: 5
+    initial: 25
+    unit_of_measurement: "%"
+    icon: mdi:shaker-outline
+  pillar_low_battery_threshold:
+    name: Pillar low battery alert
+    min: 5
+    max: 50
+    step: 5
+    initial: 20
+    unit_of_measurement: "%"
+    icon: mdi:battery-low
+
+template:
+  - binary_sensor:
+      # On when Pillar hasn't reported for 14 h (it wakes every 6 h).
+      - name: Pillar offline
+        unique_id: pillar_offline
+        device_class: problem
+        state: >
+          {% set s = states.sensor.pillar_salt_distance %}
+          {% if s is none %}true
+          {% else %}{{ (now() - s.last_reported) > timedelta(hours=14) }}{% endif %}
+
+script:
+  pillar_notify:
+    alias: Pillar notify
+    mode: queued
+    fields:
+      title:
+        description: Notification title
+      message:
+        description: Notification body
+    sequence:
+      - action: notify.mobile_app_fat_amy
+        data:
+          title: "{{ title }}"
+          message: "{{ message }}"
+
+automation:
+  - id: pillar_low_salt
+    alias: Pillar - low salt
+    triggers:
+      - trigger: numeric_state
+        entity_id: sensor.pillar_salt_level
+        below: input_number.pillar_low_salt_threshold
+    actions:
+      - action: script.pillar_notify
+        data:
+          title: Softener salt low
+          message: >
+            Salt is at {{ states('sensor.pillar_salt_level') | int(0) }}%.
+            Time to add a few bags.
+
+  - id: pillar_low_salt_reminder
+    alias: Pillar - low salt reminder
+    description: Saturday morning nudge while the salt is still low.
+    triggers:
+      - trigger: time
+        at: "09:00:00"
+    conditions:
+      - condition: time
+        weekday: [sat]
+      - condition: numeric_state
+        entity_id: sensor.pillar_salt_level
+        below: input_number.pillar_low_salt_threshold
+    actions:
+      - action: script.pillar_notify
+        data:
+          title: Softener salt still low
+          message: Salt is at {{ states('sensor.pillar_salt_level') | int(0) }}%.
+
+  - id: pillar_low_battery
+    alias: Pillar - low battery
+    triggers:
+      - trigger: numeric_state
+        entity_id: sensor.pillar_battery
+        below: input_number.pillar_low_battery_threshold
+    actions:
+      - action: script.pillar_notify
+        data:
+          title: Pillar battery low
+          message: >
+            Battery at {{ states('sensor.pillar_battery') | int(0) }}%.
+            Charge it over USB-C next time you add salt.
+
+  - id: pillar_offline
+    alias: Pillar - offline
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.pillar_offline
+        to: "on"
+    actions:
+      - action: script.pillar_notify
+        data:
+          title: Pillar hasn't reported
+          message: No salt reading for 14 hours. Battery or Wi-Fi?

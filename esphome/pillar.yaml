@@ -1,0 +1,245 @@
+# Pillar: water softener salt level sensor
+#
+# A VL53L4CD time-of-flight sensor hangs under the brine tank lid and measures
+# the distance down to the top of the salt. The ESP32-C6 wakes every
+# ${sleep_interval}, takes a burst of readings, reports to Home Assistant and
+# goes back into deep sleep.
+#
+# Hardware
+#   - DFRobot FireBeetle 2 ESP32-C6 (DFR1075)
+#   - Pololu VL53L4CD carrier (#3692)
+#   - 3000 mAh LiPo (LP103665) on the FireBeetle's JST battery connector
+#
+# Wiring (FireBeetle -> Pololu carrier), see README.md:
+#
+#   3V3  -> VIN
+#   GND  -> GND
+#   IO19 -> SDA
+#   IO20 -> SCL
+#   (XSHUT and GPIO1 not connected)
+#
+# Check the pin labels on your board's silkscreen. If yours puts SDA/SCL on
+# other pins, change sda_pin / scl_pin below.
+#
+# Calibration: set empty_distance_mm and full_distance_mm (README.md).
+#
+# To flash OTA or watch the logs, turn on input_boolean.pillar_stay_awake in
+# Home Assistant first. The device sees it on its next wake and stays awake
+# until you turn it off again.
+
+substitutions:
+  name: pillar
+  friendly_name: Pillar
+
+  # How often to wake up and measure. Salt goes down slowly; 6h is plenty.
+  sleep_interval: 6h
+
+  # CALIBRATION (millimetres from the sensor face to the top of the salt)
+  # empty_distance_mm: reading when the salt is down to where you'd refill
+  #   (0%). Often this is about where the water line sits.
+  # full_distance_mm: reading right after a full fill (100%).
+  # These are placeholders. Measure and replace them.
+  empty_distance_mm: "800"
+  full_distance_mm: "250"
+
+  sda_pin: GPIO19
+  scl_pin: GPIO20
+  battery_pin: GPIO0 # FireBeetle C6 battery voltage pin (on-board divider)
+  battery_divider: "2.0" # check against a multimeter, see README.md
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  min_version: 2025.6.0
+  on_boot:
+    # Run after Wi-Fi and the API have started.
+    priority: -100
+    then:
+      - script.execute: report_and_sleep
+
+esp32:
+  board: esp32-c6-devkitc-1
+  variant: esp32c6
+  flash_size: 4MB
+  framework:
+    type: esp-idf
+
+external_components:
+  - source:
+      type: local
+      path: components
+    components: [vl53l4cd]
+
+logger:
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+  # The device is asleep most of the time; never reboot because HA is away.
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+    # Reuses the API encryption key to authenticate firmware uploads.
+    encryption: {}
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  # Connect straight to the known AP instead of scanning: faster wake, less
+  # battery. A static IP (manual_ip) shortens it further if you want.
+  fast_connect: true
+  reboot_timeout: 0s
+
+deep_sleep:
+  id: deep_sleep_ctl
+  sleep_duration: ${sleep_interval}
+
+i2c:
+  sda: ${sda_pin}
+  scl: ${scl_pin}
+  frequency: 400kHz
+
+script:
+  - id: report_and_sleep
+    mode: single
+    then:
+      # Measure first; this doesn't need the network.
+      - component.update: battery_voltage
+      - component.update: salt_distance
+      - wait_until:
+          condition:
+            lambda: return !id(salt_distance).is_measuring();
+          timeout: 5s
+      # Up to 20 s for Wi-Fi + Home Assistant. If they never show up, give up
+      # and sleep anyway; the next wake tries again.
+      - wait_until:
+          condition:
+            api.connected:
+          timeout: 20s
+      - if:
+          condition:
+            api.connected:
+          then:
+            - component.update: wifi_rssi
+            # Let the states go out and the stay-awake switch come in.
+            - delay: 3s
+      - if:
+          condition:
+            binary_sensor.is_on: stay_awake
+          then:
+            - logger.log:
+                level: WARN
+                format: "Stay-awake is on: not sleeping (turn it off in HA to resume)"
+          else:
+            - logger.log: "Going to sleep for ${sleep_interval}"
+            - deep_sleep.enter: deep_sleep_ctl
+
+sensor:
+  # Distance from the sensor to the top of the salt.
+  - platform: vl53l4cd
+    id: salt_distance
+    name: Salt Distance
+    update_interval: never # read once per wake by the script
+    timing_budget: 100ms
+    samples: 9
+    entity_category: diagnostic
+
+  # 0-100 % between the empty and full calibration distances.
+  - platform: copy
+    id: salt_level
+    name: Salt Level
+    source_id: salt_distance
+    unit_of_measurement: "%"
+    device_class: ""
+    state_class: measurement
+    icon: mdi:shaker-outline
+    accuracy_decimals: 0
+    filters:
+      - lambda: |-
+          if (std::isnan(x)) return {};
+          const float empty = ${empty_distance_mm};
+          const float full = ${full_distance_mm};
+          float pct = (empty - x) / (empty - full) * 100.0f;
+          return std::max(0.0f, std::min(100.0f, pct));
+
+  # Salt above the empty mark, in inches.
+  - platform: copy
+    id: salt_depth
+    name: Salt Above Empty
+    source_id: salt_distance
+    unit_of_measurement: in
+    device_class: distance
+    state_class: measurement
+    icon: mdi:arrow-expand-vertical
+    accuracy_decimals: 1
+    filters:
+      - lambda: |-
+          if (std::isnan(x)) return {};
+          return std::max(0.0f, (${empty_distance_mm} - x) / 25.4f);
+
+  - platform: adc
+    id: battery_voltage
+    name: Battery Voltage
+    pin: ${battery_pin}
+    attenuation: 12db
+    samples: 16
+    update_interval: never
+    accuracy_decimals: 2
+    entity_category: diagnostic
+    filters:
+      - multiply: ${battery_divider}
+
+  - platform: copy
+    id: battery_level
+    name: Battery
+    source_id: battery_voltage
+    unit_of_measurement: "%"
+    device_class: battery
+    state_class: measurement
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    filters:
+      # Rough single-cell LiPo resting curve.
+      - calibrate_linear:
+          method: exact
+          datapoints:
+            - 3.30 -> 0
+            - 3.50 -> 7
+            - 3.60 -> 15
+            - 3.70 -> 30
+            - 3.75 -> 40
+            - 3.80 -> 50
+            - 3.90 -> 65
+            - 4.00 -> 78
+            - 4.10 -> 90
+            - 4.20 -> 100
+      - clamp:
+          min_value: 0
+          max_value: 100
+
+  - platform: wifi_signal
+    id: wifi_rssi
+    name: WiFi Signal
+    update_interval: never
+    entity_category: diagnostic
+
+binary_sensor:
+  # input_boolean.pillar_stay_awake in Home Assistant (homeassistant/packages/pillar.yaml).
+  - platform: homeassistant
+    id: stay_awake
+    entity_id: input_boolean.pillar_stay_awake
+    internal: true
+    on_release:
+      # Switch turned off while the device is awake: measure and go to sleep.
+      - script.execute: report_and_sleep
+
+button:
+  # Take a fresh reading now (only works while the device is awake).
+  - platform: template
+    name: Measure Now
+    icon: mdi:refresh
+    entity_category: config
+    on_press:
+      - component.update: battery_voltage
+      - component.update: salt_distance
